@@ -15,7 +15,7 @@
     "telegram": "bun run examples/v1/example-telegram.ts",
     "vector": "bun run examples/v1/example-vector.ts",
     "deep-research": "bun run examples/v1/deep-research/index.ts",
-    "ui": "bun --dir clients/example-ui run dev",
+    "ui": "bun --cwd clients/example-ui run dev",
     "test": "bun run packages/core",
     "build:core": "cd packages/core && bun run build",
     "release": "cd packages/core && bun run build && cd ../.. && npx lerna publish --no-private --force-publish",
