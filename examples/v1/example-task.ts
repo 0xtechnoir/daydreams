@@ -22,14 +22,34 @@ import {
   createContainer,
   fetchGraphQL,
   type InferContextMemory,
-  validateEnv,
+  createMemoryStore,
 } from "@daydreamsai/core";
-import { cli } from "@daydreamsai/core/extensions";
+import { cli, createChromaVectorStore } from "@daydreamsai/core/extensions";
 import { deepResearch } from "./deep-research/research";
 import { string, z } from "zod";
 import { tavily } from "@tavily/core";
 import { ETERNUM_CONTEXT } from "../v0/eternum-context";
 import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
+
+// Simple environment validation function
+function validateEnv<T extends z.ZodTypeAny>(
+  schema: T,
+  env = process.env
+): z.infer<T> {
+  try {
+    return schema.parse(env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error("Environment validation failed:");
+      error.errors.forEach((err) => {
+        console.error(`- ${err.message}`);
+      });
+      process.exit(1);
+    }
+    throw error;
+  }
+}
 
 validateEnv(
   z.object({
@@ -224,6 +244,11 @@ createDreams({
   extensions: [cli, deepResearch],
   context: goalContexts,
   container,
+  memory: {
+    store: createMemoryStore(),
+    vector: createChromaVectorStore("agent", "http://localhost:8000"),
+    vectorModel: openai("gpt-4-turbo"),
+  },
   actions: [
     /**
      * Action to decompose a goal into executable tasks
@@ -332,7 +357,7 @@ createDreams({
      * Action to query Eternum game context
      */
     action({
-      name: "queryEternum",
+      name: "queryEternumGuide",
       description:
         "This will tell you everything you need to know about Eternum for how to win the game",
       schema: z.object({ query: z.string() }),
@@ -351,33 +376,23 @@ createDreams({
      */
     action({
       name: "Query:Eternum:Graphql",
-      description: "Search Eternum GraphQL API",
+      description: "Retrieve current Eternum game state from GraphQL API",
       schema: z.object({
         query: z.string().describe(`
-            query GetRealmDetails {
-  s0EternumResourceModels(where: { entity_id: ENTITY_ID }, limit: 100) {
-    edges {
-      node {
-          resource_type
-          balance
-      }
-    }
-  }
-  s0EternumBuildingModels(where: { outer_col: X, outer_row: Y }) {
-    edges {
-      node {
-          category
-          entity_id
-          inner_col
-          inner_row
-      }
-    }
-  }
-}`),
+            query GetRealmInfo {
+              eternumRealmModels(where: { realm_id: REALM_ID }) {
+                edges {
+                  node {
+                      entity_id
+                      level
+                  }
+                }
+              }
+            }`),
       }),
       async handler(call, ctx, agent) {
         const result = await fetchGraphQL(
-          "https://api.cartridge.gg/x/eternum-sepolia/torii/graphql",
+          process.env.GRAPHQL_URL!,
           call.data.query
         );
 
