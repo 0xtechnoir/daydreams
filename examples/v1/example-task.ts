@@ -23,6 +23,7 @@ import {
   fetchGraphQL,
   type InferContextMemory,
   createMemoryStore,
+  validateEnv,
 } from "@daydreamsai/core";
 import { cli, createChromaVectorStore } from "@daydreamsai/core/extensions";
 import { deepResearch } from "./deep-research/research";
@@ -34,6 +35,7 @@ import {
   PROVIDER_GUIDE,
 } from "../v0/eternum-context";
 import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
 import { StarknetChain } from "../../packages/core/src/chains/starknet";
 
 // Initialize the starknetChain instance with configuration
