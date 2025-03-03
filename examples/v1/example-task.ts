@@ -28,34 +28,30 @@ import { cli, createChromaVectorStore } from "@daydreamsai/core/extensions";
 import { deepResearch } from "./deep-research/research";
 import { string, z } from "zod";
 import { tavily } from "@tavily/core";
-import { ETERNUM_CONTEXT } from "../v0/eternum-context";
+import {
+  ETERNUM_CONTEXT,
+  QUERY_GUIDE,
+  PROVIDER_GUIDE,
+} from "../v0/eternum-context";
 import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
+import { StarknetChain } from "../../packages/core/src/chains/starknet";
 
-// Simple environment validation function
-function validateEnv<T extends z.ZodTypeAny>(
-  schema: T,
-  env = process.env
-): z.infer<T> {
-  try {
-    return schema.parse(env);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      console.error("Environment validation failed:");
-      error.errors.forEach((err) => {
-        console.error(`- ${err.message}`);
-      });
-      process.exit(1);
-    }
-    throw error;
-  }
-}
+// Initialize the starknetChain instance with configuration
+const starknetChain = new StarknetChain({
+  rpcUrl: process.env.STARKNET_RPC_URL || "http://localhost:5050",
+  address: process.env.STARKNET_ADDRESS || "0x0",
+  privateKey: process.env.STARKNET_PRIVATE_KEY || "0x0",
+});
 
 validateEnv(
   z.object({
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     TAVILY_API_KEY: z.string().min(1, "TAVILY_API_KEY is required"),
     OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
+    STARKNET_RPC_URL: z.string().min(1, "STARKNET_RPC_URL is required"),
+    STARKNET_ADDRESS: z.string().min(1, "STARKNET_ADDRESS is required"),
+    STARKNET_PRIVATE_KEY: z.string().min(1, "STARKNET_PRIVATE_KEY is required"),
+    GRAPHQL_URL: z.string().min(1, "GRAPHQL_URL is required"),
   })
 );
 
@@ -376,21 +372,42 @@ createDreams({
      */
     action({
       name: "Query:Eternum:Graphql",
-      description: "Retrieve current Eternum game state from GraphQL API",
+      description: `
+          USE WHEN:
+          - You need to query the game state
+          - You need to get the resources or buildings in the game
+
+          RULES:
+          - You must only use valid graphql syntax
+          - Never use "\\n" or escape any characters in the string
+          - Only submit the query, no other text
+          - ${QUERY_GUIDE}
+        `,
       schema: z.object({
         query: z.string().describe(`
-            query GetRealmInfo {
-              eternumRealmModels(where: { realm_id: REALM_ID }) {
+            query GetRealmDetails {
+              eternumResourceModels(where: { entity_id: ENTITY_ID }, limit: 100) {
                 edges {
                   node {
-                      entity_id
-                      level
+                      resource_type
+                      balance
                   }
                 }
               }
-            }`),
+            eternumBuildingModels(where: { outer_col: X, outer_row: Y }) {
+              edges {
+                node {
+                    category
+                    entity_id
+                    inner_col
+                    inner_row
+                }
+              }
+            }
+          }`),
       }),
       async handler(call, ctx, agent) {
+        console.log("Query:Eternum:Graphql Action called: ", call);
         const result = await fetchGraphQL(
           process.env.GRAPHQL_URL!,
           call.data.query
@@ -407,6 +424,70 @@ createDreams({
             result: result,
           },
           timestamp: Date.now(),
+        };
+      },
+    }),
+
+    /**
+     * Action to execute a transaction on the Starknet chain
+     */
+    action({
+      name: "Execute:Starknet:Transaction",
+      description: `
+          USE WHEN:
+          - You need to execute a transaction on the Starknet chain
+          - You need to call a function on a Starknet contract
+
+          RULES:
+          - ${PROVIDER_GUIDE}
+        `,
+      schema: z.object({
+        contractAddress: z
+          .string()
+          .describe(
+            "The address of the contract to execute the transaction on"
+          ),
+        entrypoint: z
+          .string()
+          .describe("The entrypoint to call on the contract"),
+        calldata: z
+          .array(
+            z.union([
+              z.number(),
+              z.string(),
+              z.array(z.union([z.number(), z.string()])),
+            ])
+          )
+          .describe("The calldata to pass to the entrypoint."),
+      }),
+      async handler(call, ctx, agent) {
+        console.log("Execute:Starknet:Transaction Action called: ", call);
+        const result = await starknetChain.write(call.data);
+        if (result instanceof Error) {
+          console.error(
+            "Error executing transaction:",
+            result.message,
+            "\nCall data:",
+            JSON.stringify(
+              {
+                contractAddress: call.data.contractAddress,
+                entrypoint: call.data.entrypoint,
+                calldata: call.data.calldata,
+              },
+              null,
+              2
+            )
+          );
+          return {
+            error: result.message,
+          };
+        }
+        return {
+          content: `Transaction executed successfully: ${JSON.stringify(
+            result,
+            null,
+            2
+          )}`,
         };
       },
     }),
