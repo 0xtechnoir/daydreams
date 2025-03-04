@@ -12,7 +12,7 @@ import { fetchGraphQL } from "../packages/core/src/core/providers";
 import { StarknetChain } from "../packages/core/src/core/chains/starknet";
 
 import { ChainOfThought } from "../packages/core/src/core/chain-of-thought";
-import { ETERNUM_CONTEXT, PROVIDER_GUIDE } from "./eternum-context";
+import { ETERNUM_CONTEXT, PROVIDER_GUIDE } from "../sleeves/eternum-context";
 import * as readline from "readline";
 import chalk from "chalk";
 

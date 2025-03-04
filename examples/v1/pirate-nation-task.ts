@@ -30,19 +30,20 @@ import { deepResearch } from "./deep-research/research";
 import { string, z } from "zod";
 import { tavily } from "@tavily/core";
 import {
-  ETERNUM_CONTEXT,
+  PIRATE_NATION_CONTEXT,
   QUERY_GUIDE,
   PROVIDER_GUIDE,
-} from "../sleeves/eternum-context";
+} from "../sleeves/pirate-nation-context";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { StarknetChain } from "../../packages/core/src/chains/starknet";
+import { EvmChain } from "../../packages/core/src/chains/evm";
 
 // Initialize the starknetChain instance with configuration
-const starknetChain = new StarknetChain({
-  rpcUrl: process.env.STARKNET_RPC_URL || "http://localhost:5050",
-  address: process.env.STARKNET_ADDRESS || "0x0",
-  privateKey: process.env.STARKNET_PRIVATE_KEY || "0x0",
+const evmChain = new EvmChain({
+  chainName: "pop",
+  rpcUrl: process.env.POP_RPC_URL || "http://localhost:5050",
+  privateKey: process.env.POP_PRIVATE_KEY || "0x0",
+  chainId: 70804,
 });
 
 validateEnv(
@@ -50,9 +51,9 @@ validateEnv(
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     TAVILY_API_KEY: z.string().min(1, "TAVILY_API_KEY is required"),
     OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
-    STARKNET_RPC_URL: z.string().min(1, "STARKNET_RPC_URL is required"),
-    STARKNET_ADDRESS: z.string().min(1, "STARKNET_ADDRESS is required"),
-    STARKNET_PRIVATE_KEY: z.string().min(1, "STARKNET_PRIVATE_KEY is required"),
+    POP_RPC_URL: z.string().min(1, "STARKNET_RPC_URL is required"),
+    POP_ADDRESS: z.string().min(1, "STARKNET_ADDRESS is required"),
+    POP_PRIVATE_KEY: z.string().min(1, "STARKNET_PRIVATE_KEY is required"),
     GRAPHQL_URL: z.string().min(1, "GRAPHQL_URL is required"),
   })
 );
@@ -355,14 +356,14 @@ createDreams({
      * Action to query Eternum game context
      */
     action({
-      name: "queryEternumGuide",
+      name: "queryPirateNationGuide",
       description:
-        "This will tell you everything you need to know about Eternum for how to win the game",
+        "This will tell you everything you need to know about Pirate Nation for how to play the game",
       schema: z.object({ query: z.string() }),
       handler(call, ctx, agent) {
         return {
           data: {
-            result: ETERNUM_CONTEXT,
+            result: PIRATE_NATION_CONTEXT,
           },
           timestamp: Date.now(),
         };
@@ -373,7 +374,7 @@ createDreams({
      * Action to query Eternum GraphQL API for game state
      */
     action({
-      name: "Query:Eternum:Graphql",
+      name: "Query:PirateNation:Graphql",
       description: `
           USE WHEN:
           - You need to query the game state
@@ -387,29 +388,32 @@ createDreams({
         `,
       schema: z.object({
         query: z.string().describe(`
-            query GetRealmDetails {
-              eternumResourceModels(where: { entity_id: ENTITY_ID }, limit: 100) {
-                edges {
-                  node {
-                      resource_type
-                      balance
+          query GetAccount {accounts(where: { address: $WALLET_ADDRESS }) {
+            address
+            id
+            nfts {
+              name
+              nftType
+              tokenId
+            }
+            worldEntity {
+              components {
+                component {
+                  worldEntity {
+                    name
                   }
                 }
-              }
-            eternumBuildingModels(where: { outer_col: X, outer_row: Y }) {
-              edges {
-                node {
-                    category
-                    entity_id
-                    inner_col
-                    inner_row
+                fields {
+                  name
+                  value
                 }
               }
             }
-          }`),
+          }}
+        `),
       }),
       async handler(call, ctx, agent) {
-        console.log("Query:Eternum:Graphql Action called: ", call);
+        console.log("Query:PirateNation:Graphql Action called: ", call);
         const result = await fetchGraphQL(
           process.env.GRAPHQL_URL!,
           call.data.query
@@ -434,11 +438,11 @@ createDreams({
      * Action to execute a transaction on the Starknet chain
      */
     action({
-      name: "Execute:Starknet:Transaction",
+      name: "Execute:POP:Transaction",
       description: `
           USE WHEN:
-          - You need to execute a transaction on the Starknet chain
-          - You need to call a function on a Starknet contract
+          - You need to execute a transaction on the POP chain
+          - You need to call a function on a POP contract
 
           RULES:
           - ${PROVIDER_GUIDE}
@@ -463,8 +467,8 @@ createDreams({
           .describe("The calldata to pass to the entrypoint."),
       }),
       async handler(call, ctx, agent) {
-        console.log("Execute:Starknet:Transaction Action called: ", call);
-        const result = await starknetChain.write(call.data);
+        console.log("Execute:POP:Transaction Action called: ", call);
+        const result = await evmChain.write(call.data);
         if (result instanceof Error) {
           console.error(
             "Error executing transaction:",
