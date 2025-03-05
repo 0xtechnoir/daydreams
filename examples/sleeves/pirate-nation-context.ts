@@ -295,6 +295,34 @@ export const QUERY_GUIDE = `
     }
     }
 
+    2. Get a list of available quests
+
+    query GetWorldEntitiesByTag{
+    worldEntities( first :10000, where :{ tags_ :{ tag :"quest"}} ){
+        components{
+            id
+            fields{
+                value
+                name
+        }
+            component{
+                contract{
+                    address
+            }
+        }
+            bytesValue
+        }
+        id
+        gameItem{
+            actions{
+                id
+                name
+                actionId
+            }
+        }
+    }
+    }
+
     </COMMON_QUERIES>
 
     <EXAMPLES>
@@ -336,6 +364,11 @@ export const QUERY_GUIDE = `
     }
     }
     </EXAMPLES>
+
+    <AVAILABLE_QUERIES>
+        accounts
+        worldEntities
+    </AVAILABLE_QUERIES>
 `;
 
 // API DOCs etc
